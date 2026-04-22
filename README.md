@@ -48,6 +48,20 @@ If a marketplace that references this plugin is added to Claude Code, install wi
 
 Once installed, the skills activate automatically when their trigger conditions are met — for example, when you're working in a Unity project that uses DOD architecture, or when you ask Claude to review a Unity UI prefab. You can also invoke a skill directly via the `Skill` tool.
 
+### Per-project install (recommended for users who also build non-Unity games)
+
+If you want these skills to appear only in your Unity projects (and stay out of the skill list for non-Unity projects), use the included script to symlink the skills into a specific project's `.claude/skills/` directory:
+
+```bash
+# From the plugin directory:
+./install-in-project.sh /path/to/your/unity/project
+
+# Or from inside a Unity project:
+/path/to/unity-data-oriented-design-skills/install-in-project.sh
+```
+
+The script creates symlinks in `<project>/.claude/skills/` pointing back to this plugin, so the plugin repo remains the single source of truth and pulling updates is just `git pull` inside the plugin.
+
 ## Companion package
 
 The `unity-development` skill uses the [`unity-agent-bridge`](https://github.com/nitzanwilnai/unity-agent-bridge) Unity package. Install that package in your Unity project to enable the bridge-based workflows (compilation checks, static method execution, screenshots).
