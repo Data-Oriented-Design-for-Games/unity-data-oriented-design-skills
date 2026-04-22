@@ -17,7 +17,7 @@ Claude Code skills for building Unity games using **Data-Oriented Design (DOD)**
 Clone into Claude Code's plugin cache:
 
 ```bash
-git clone https://github.com/nitzanwilnai/unity-data-oriented-design-skills.git \
+git clone https://github.com/Data-Oriented-Design-for-Games/unity-data-oriented-design-skills.git \
   ~/.claude/plugins/cache/local/unity-data-oriented-design-skills/1.0.0
 ```
 
