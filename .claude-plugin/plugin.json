@@ -1,0 +1,21 @@
+{
+  "name": "unity-data-oriented-design-skills",
+  "description": "Claude Code skills for building Unity games using Data-Oriented Design (DOD) architecture from the Manning book by Nitzan Wilnai. Includes DOD architecture guide, unity-agent-bridge workflow, and Unity UI/UX review checklist.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Nitzan Wilnai",
+    "url": "https://github.com/nitzanwilnai"
+  },
+  "homepage": "https://github.com/nitzanwilnai/unity-data-oriented-design-skills",
+  "repository": "https://github.com/nitzanwilnai/unity-data-oriented-design-skills",
+  "license": "MIT",
+  "keywords": [
+    "unity",
+    "data-oriented-design",
+    "dod",
+    "game-development",
+    "claude-code",
+    "skills",
+    "unity-agent-bridge"
+  ]
+}
