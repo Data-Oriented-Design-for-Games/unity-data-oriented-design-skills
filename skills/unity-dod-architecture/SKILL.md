@@ -1,19 +1,22 @@
 ---
 name: unity-dod-architecture
 description: >
-  Architecture guide for Data-Oriented Design (DOD) for Games by Nitzan Wilnai (Manning).
-  Use this skill whenever working on a Unity project that follows the book's DOD architecture,
-  or whenever the user asks to: generate DOD-compliant Unity code, scaffold a new game feature
-  in DOD style, explain DOD concepts using the book's terminology, review code for DOD
-  violations, or create any of the core architectural classes (Balance, GameData, Logic, Board,
-  Game, AssetManager, GameDataIO, MetaDataIO, GUIRef, Singleton). Also trigger when the user
-  mentions "balance data", "game data", "static logic functions", "data-in/transformation/data-out",
-  "tooltime parsing", "ScriptableObject balance", or any concept from the book.
+  Architecture guide for High Performance Unity Game Development (Using data-oriented design)
+  by Nitzan Wilnai (Manning). Use this skill whenever working on a Unity project that follows
+  the book's DOD architecture, or whenever the user asks to: generate DOD-compliant Unity code,
+  scaffold a new game feature in DOD style, explain DOD concepts using the book's terminology,
+  review code for DOD violations, or create any of the core architectural classes (Balance,
+  GameData, Logic, Board, Game, AssetManager, GameDataIO, MetaDataIO, GUIRef, Singleton). Also
+  trigger when the user mentions "balance data", "game data", "static logic functions",
+  "data-in/transformation/data-out", "tooltime parsing", "ScriptableObject balance", "avoiding
+  dictionaries", "indices at tool time", "dynamic object pool", "branchless", "branch prediction",
+  "Unity null checks", "Unity DOTS", "Burst", "Jobs", "ECS", "TransformAccessArray", or any
+  concept from the book.
 ---
 
-# Data-Oriented Design for Games — Unity Architecture Skill
+# High Performance Unity Game Development — Unity Architecture Skill
 
-This skill encodes the architecture from *Data-Oriented Design for Games* by Nitzan Wilnai (Manning Publications, MEAP v8). When helping users build or review Unity projects using this book's approach, follow all patterns and terminology precisely.
+This skill encodes the architecture from *High Performance Unity Game Development* (subtitle: *Using data-oriented design*) by Nitzan Wilnai (Manning Publications, MEAP v12). When helping users build or review Unity projects using this book's approach, follow all patterns and terminology precisely.
 
 ---
 
@@ -413,6 +416,67 @@ public static class GameDataIO
 
 ---
 
+## Dictionaries & Indices (Chapter 10 Pattern)
+
+Avoid `Dictionary<,>` lookups at runtime — they are ~10x slower than array access (hashing, collision chains, cache-unfriendly pointer chasing). Replace runtime dictionaries with **indices assigned at tool time**.
+
+```csharp
+// WRONG — dictionary lookup every frame
+Dictionary<string, EnemyData> enemies;
+EnemyData e = enemies["Zombie"];
+
+// CORRECT — ID assigned at tool time, used as an array index at runtime
+// Balance holds parallel arrays keyed by enemy type ID:
+public float[] EnemyTypeVelocity;   // indexed by enemyTypeId
+public float[] EnemyTypeRadius;
+public int[]   EnemyTypeWeight;
+// GameData stores the type ID per active enemy:
+public int[] EnemyTypeId;           // indexed by enemy slot
+float v = balance.EnemyTypeVelocity[gameData.EnemyTypeId[i]];
+```
+
+**Multiple entity types:** designers author one `EnemySO` ScriptableObject per type; the tool-time parser assigns each a stable integer ID and flattens the data into Balance arrays. `AssetManager` holds a `[SerializeField] GameObject[] m_enemyPrefabs` (order irrelevant) and is matched to types by prefab name at load.
+
+**Dynamic object pools:**
+- Pick a **maximum** pool size in Balance, preallocate to it once — never resize at runtime.
+- Only **add** items to the pool at runtime. Removing/freeing at runtime fragments memory and triggers the GC.
+
+**Backwards compatibility for indices:** indices are not stable across builds (a designer may insert a new type). On **save**, write each object's unique ID, not its index. On **load**, build a `Dictionary<id, index>` once to remap saved IDs to current indices. This dictionary is used ONLY at load time, never during gameplay.
+
+---
+
+## Branching & Branchless Code (Chapter 11 Pattern)
+
+Branches cost performance (misprediction flushes the CPU pipeline; even predictable branches cost in tight loops) and add code complexity. Reduce them by reorganizing data, not by cleverer conditionals.
+
+**Rules:**
+- Move conditional logic OUT of hot core functions; decide once, up front, or at tool time.
+- Avoid early returns — they fragment the execution path and hide branches.
+- **Separate data instead of checking it:** keep alive and dead enemies in separate index arrays (`AliveEnemyIndices` / `DeadEnemyIndices`) so loops never test an `isAlive` flag per item.
+- **Separate objects to remove branches:** factor shared UI into common elements rather than branching on type.
+- Watch for **hidden branches** — default parameter values, and especially Unity null checks.
+
+**Unity null checks are expensive** (C#↔C++ interop on `UnityEngine.Object`). Avoid repeating them:
+- **Check once:** validate GameObjects/components for null during loading, then trust them.
+- **Own the lifetime:** if your code created and owns the data/GameObject, you don't need to null-check it later.
+- **Zero tolerance:** adopt a strict error handler during development (e.g. pause the editor on any error/exception) so missing data is caught at dev time, not guarded at runtime.
+- **Avoid fire-and-forget:** coroutines and async calls can resume and touch data that has since been freed/nulled — prefer driving everything from the deterministic Tick.
+
+---
+
+## Unity DOTS (Chapter 12 Pattern)
+
+DOTS is an **incremental optimization layered on top of existing DOD code — not a rewrite.** Because data already lives in arrays, adopting DOTS is selective and local. Reach for it only when a specific system is the measured bottleneck.
+
+**Do NOT add DOTS to a project by default.** Most projects never need it — plain DOD already gives cache-friendly, allocation-free code. Never scaffold Burst/Jobs/ECS/NativeArray when creating or extending a feature. Only recommend or introduce DOTS *after* profiling identifies a real bottleneck, and even then only for the specific system that is slow. When in doubt, suggest it as an option for the user to consider rather than applying it.
+
+- **Burst (SIMD):** compiles array math to SIMD instructions that process multiple elements per instruction. Requires `NativeArray<T>` and DOTS-compatible types (e.g. `float2` instead of `Vector2`).
+- **Jobs:** split array work across CPU cores. Scheduling has overhead — it can be *slower* on small data sets, so measure.
+- **ECS:** Entity = the array index, Component = the arrays of data, System = the logic over them. ECS is one implementation of DOD; it adds complexity and is not required for performance gains.
+- **TransformAccessArray:** update GameObject transforms in parallel without converting to ECS. It iterates all elements (unused slots add branching), so use it only when transform updates are the bottleneck.
+
+---
+
 ## Common Anti-Patterns to Flag
 
 | Anti-Pattern | DOD Correction |
@@ -428,6 +492,12 @@ public static class GameDataIO
 | Shared code between features | Duplicate if needed; only share if simple, single-purpose, and can be static |
 | Defensive runtime checks on balance data | Validate at tool time; trust the data at runtime |
 | Unity Addressables for asset loading | Assign in editor via `[SerializeField]`; use Resources folder for dynamic loads |
+| `Dictionary<,>` lookups during gameplay | Assign indices/IDs at tool time; use arrays at runtime (~10x faster). Allow a dictionary only at load time |
+| Resizing/freeing pools at runtime | Preallocate to a max size once; only add items at runtime (removal fragments memory + triggers GC) |
+| Saving array indices directly | Save stable unique IDs; remap with a load-time dictionary for backwards compatibility |
+| Per-item `isAlive`/status checks in loops | Separate data into alive/dead index arrays so the branch disappears |
+| Repeated null checks on `UnityEngine.Object` | Check once at load and own the lifetime; null checks cross C#↔C++ and are expensive |
+| Reaching for ECS/DOTS by default | DOTS is an incremental optimization for measured bottlenecks; DOD does not require ECS |
 
 ---
 

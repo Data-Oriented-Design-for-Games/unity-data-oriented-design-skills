@@ -1,6 +1,6 @@
 # unity-data-oriented-design-skills
 
-Claude Code skills for building Unity games using **Data-Oriented Design (DOD)** architecture, based on the Manning book *Data-Oriented Design for Games* by Nitzan Wilnai.
+Claude Code skills for building Unity games using **Data-Oriented Design (DOD)** architecture, based on the Manning book *High Performance Unity Game Development* (*Using data-oriented design*) by Nitzan Wilnai.
 
 ## Included skills
 
@@ -18,7 +18,7 @@ Clone into Claude Code's plugin cache:
 
 ```bash
 git clone https://github.com/Data-Oriented-Design-for-Games/unity-data-oriented-design-skills.git \
-  ~/.claude/plugins/cache/local/unity-data-oriented-design-skills/1.0.0
+  ~/.claude/plugins/cache/local/unity-data-oriented-design-skills/1.1.0
 ```
 
 Then reference it in `~/.claude/settings.json` (user-level) or `<project>/.claude/settings.json` (project-level):
@@ -27,8 +27,8 @@ Then reference it in `~/.claude/settings.json` (user-level) or `<project>/.claud
 {
   "plugins": {
     "unity-data-oriented-design-skills@local": {
-      "installPath": "~/.claude/plugins/cache/local/unity-data-oriented-design-skills/1.0.0",
-      "version": "1.0.0"
+      "installPath": "~/.claude/plugins/cache/local/unity-data-oriented-design-skills/1.1.0",
+      "version": "1.1.0"
     }
   }
 }
@@ -72,4 +72,4 @@ MIT — see [LICENSE](LICENSE).
 
 ## Author
 
-[Nitzan Wilnai](https://github.com/nitzanwilnai) — author of *Data-Oriented Design for Games* (Manning Publications).
+[Nitzan Wilnai](https://github.com/nitzanwilnai) — author of *High Performance Unity Game Development* (*Using data-oriented design*, Manning Publications).

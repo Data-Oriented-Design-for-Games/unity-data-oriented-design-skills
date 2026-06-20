@@ -1,6 +1,6 @@
 # DOD Patterns Reference
 
-Detailed code patterns from *Data-Oriented Design for Games* by Nitzan Wilnai.
+Detailed code patterns from *High Performance Unity Game Development* (Using data-oriented design) by Nitzan Wilnai.
 
 ## Table of Contents
 1. [Parallel Arrays vs Array of Objects](#1-parallel-arrays-vs-array-of-objects)
@@ -11,6 +11,7 @@ Detailed code patterns from *Data-Oriented Design for Games* by Nitzan Wilnai.
 6. [Menu Visual Pattern](#6-menu-visual-pattern)
 7. [ScriptableObject Balance Pipeline](#7-scriptableobject-balance-pipeline)
 8. [Data-First Feature Development Flow](#8-data-first-feature-development-flow)
+9. [Indices Instead of Dictionaries](#9-indices-instead-of-dictionaries)
 
 ---
 
@@ -340,3 +341,65 @@ When adding any new feature, always follow this sequence:
 8. **Does it need saving?** → Update `GameDataIO.Save()` and `GameDataIO.Load()` with version bump
 
 **The cost of a new feature is always the same:** figure out what data you need and what logic transforms it. No refactoring of existing systems required.
+
+---
+
+## 9. Indices Instead of Dictionaries
+
+Dictionary lookups are ~10x slower than array access (hashing + collision chains + cache-unfriendly pointer chasing). Assign integer IDs at tool time and use them as array indices at runtime.
+
+### Step 1 — Designers author one ScriptableObject per type
+```csharp
+[CreateAssetMenu(fileName = "Enemy", menuName = "DOD/Enemy")]
+public class EnemySO : ScriptableObject
+{
+    public string PrefabName;   // matched to AssetManager.m_enemyPrefabs by name
+    public float  Velocity;
+    public float  Radius;
+    public int    Weight;       // spawn rarity, stored where it is used (e.g. spawn table)
+}
+```
+
+### Step 2 — Tool-time parser assigns a stable ID and flattens into Balance arrays
+```csharp
+// Balance holds parallel arrays indexed by enemyTypeId:
+public string[] EnemyTypeName;
+public float[]  EnemyTypeVelocity;
+public float[]  EnemyTypeRadius;
+public int[]    EnemyTypeWeight;
+public int      EnemyTypeCount;
+```
+
+### Step 3 — Runtime uses the ID as a direct index (no dictionary)
+```csharp
+// GameData stores the type ID per active enemy slot:
+public int[] EnemyTypeId;
+
+// In Logic, look up per-type config with a plain array index:
+int typeId = gameData.EnemyTypeId[i];
+gameData.EnemyPosition[i] += dir * balance.EnemyTypeVelocity[typeId] * dt;
+```
+
+### Dynamic pool: preallocate to max, add-only at runtime
+```csharp
+// Balance defines the cap; allocate once in AllocateGameData:
+gameData.EnemyTypeId    = new int[balance.MaxEnemies];
+gameData.EnemyPosition  = new Vector2[balance.MaxEnemies];
+// Spawn = add (pop a dead slot, never resize). Never free/shrink at runtime —
+// removal fragments the heap and triggers the GC.
+```
+
+### Backwards compatibility: dictionary ONLY at load time
+```csharp
+// Indices can shift between builds (a designer inserts a new type).
+// SAVE the stable unique ID, not the index:
+bw.Write(balance.EnemyTypeName[gameData.EnemyTypeId[i]]);
+
+// LOAD: build a name→index map ONCE, remap, then discard it. Never used in gameplay.
+var nameToIndex = new Dictionary<string, int>();
+for (int t = 0; t < balance.EnemyTypeCount; t++)
+    nameToIndex[balance.EnemyTypeName[t]] = t;
+gameData.EnemyTypeId[i] = nameToIndex[br.ReadString()];
+```
+
+**Why:** arrays give O(1) lookup with a single, cache-predictable memory access. The only acceptable dictionary is a one-time remap at load — it never runs during the frame loop.
